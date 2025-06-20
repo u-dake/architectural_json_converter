@@ -1,0 +1,103 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "architectural-json-converter"
+version = "2.0.0"
+description = "建築図面差分解析システム - DXF/PDF対応"
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Development Team", email = "dev@example.com"}
+]
+keywords = ["architecture", "cad", "dxf", "pdf", "difference", "analysis"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+requires-python = ">=3.8"
+dependencies = [
+    "pydantic>=2.0.0",
+    "numpy>=1.21.0",
+    "matplotlib>=3.5.0",
+    "shapely>=2.0.0",
+    "ezdxf>=1.0.0",
+    "PyPDF2>=3.0.0",
+    "plotly>=5.0.0",
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=22.0.0",
+    "flake8>=5.0.0",
+    "mypy>=0.991",
+]
+
+[project.scripts]
+arch-analyzer = "src.main:main"
+
+[project.urls]
+Homepage = "https://github.com/example/architectural-json-converter"
+Documentation = "https://github.com/example/architectural-json-converter/docs"
+Repository = "https://github.com/example/architectural-json-converter"
+Issues = "https://github.com/example/architectural-json-converter/issues"
+
+[tool.setuptools]
+package-dir = {"" = "."}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_paths = ["."]
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["*/tests/*", "*/test_*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true

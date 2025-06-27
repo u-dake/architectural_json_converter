@@ -211,6 +211,27 @@ class SafeDXFConverter:
 
         # モデル空間を変換
         modelspace = doc.modelspace()
+        
+        # 先にINSERT要素の座標範囲を確認（単位判定用）
+        insert_min_x = insert_min_y = float('inf')
+        insert_max_x = insert_max_y = float('-inf')
+        has_inserts = False
+        
+        for entity in modelspace:
+            if entity.dxftype() == 'INSERT':
+                has_inserts = True
+                x, y = entity.dxf.insert.x, entity.dxf.insert.y
+                insert_min_x = min(insert_min_x, x)
+                insert_max_x = max(insert_max_x, x)
+                insert_min_y = min(insert_min_y, y)
+                insert_max_y = max(insert_max_y, y)
+        
+        if has_inserts and insert_min_x != float('inf'):
+            insert_width = insert_max_x - insert_min_x
+            insert_height = insert_max_y - insert_min_y
+            logging.info(f"INSERT bounds: {insert_width:.1f} x {insert_height:.1f}")
+            collection.metadata["insert_bounds"] = (insert_width, insert_height)
+        
         for entity in modelspace:
             converted = self.convert_entity(entity, doc)
             if converted:
@@ -241,36 +262,52 @@ class SafeDXFConverter:
             logging.info(f"Actual converted bounds: {width:.1f} x {height:.1f} (unit factor: {self.unit_factor})")
             logging.info(f"INSUNITS code: {collection.metadata.get('insunits_code', 'N/A')}")
             
-            # 実際のサイズに基づいて単位補正
-            # INSUNITSがmm(4)でも、実際の座標値が異なる単位の場合がある
-            if self.unit_factor == 1.0 and collection.metadata.get('insunits_code') == 4:  # INSUNITSがmm(4)の場合
-                # 建築図面の典型的なサイズ範囲をチェック
-                if 10 < width < 100 and 10 < height < 100:
-                    # メートル単位と判断して1000倍
-                    logging.info(f"Detected meter units: {width:.1f} x {height:.1f} (should be mm)")
+            # 特殊なケース：INSUNITSがmm(4)でも実際の座標がメートル単位の場合がある
+            # INSERT要素の座標も確認する
+            if self.unit_factor == 1.0 and collection.metadata.get('insunits_code') == 4:
+                # INSERT要素の座標範囲を確認
+                insert_bounds = collection.metadata.get("insert_bounds")
+                if insert_bounds:
+                    insert_width, insert_height = insert_bounds
+                    if insert_width < 1000 and insert_height < 1000:
+                        # INSERT座標がメートル単位の可能性
+                        logging.info(f"INSUNITS=mm but INSERT coordinates appear to be in meters: {insert_width:.1f} x {insert_height:.1f}")
+                        logging.info("Applying 1000x scale correction for m to mm conversion")
+                        self._apply_unit_factor_to_collection(collection, 1000.0)
+                        collection.metadata["unit_factor_mm"] = 1000.0
+                        collection.metadata["auto_scaled"] = True
+                    else:
+                        collection.metadata["auto_scaled"] = False
+                elif width < 1000 and height < 1000:  # 1000mm未満は建築図面として小さすぎる
+                    # メートル単位として記録されている可能性が高い
+                    logging.info(f"INSUNITS=mm but coordinates appear to be in meters: {width:.1f} x {height:.1f}")
                     logging.info("Applying 1000x scale correction for m to mm conversion")
                     self._apply_unit_factor_to_collection(collection, 1000.0)
                     collection.metadata["unit_factor_mm"] = 1000.0
                     collection.metadata["auto_scaled"] = True
-                elif 100 < width < 5000 and 100 < height < 5000:
-                    # デシメートル単位と判断して100倍（建築図面の典型的なサイズ）
-                    logging.info(f"Detected decimeter units: {width:.1f} x {height:.1f} (should be mm)")
-                    logging.info("Applying 100x scale correction for dm to mm conversion")
-                    self._apply_unit_factor_to_collection(collection, 100.0)
-                    collection.metadata["unit_factor_mm"] = 100.0
+                else:
+                    collection.metadata["auto_scaled"] = False
+            elif self.unit_factor == 1.0 and collection.metadata.get('insunits_code') == 0:
+                # INSUNITSが不明（0）の場合、サイズから単位を推測
+                if 10 < width < 1000 and 10 < height < 1000:
+                    # メートル単位の可能性
+                    logging.info(f"No INSUNITS specified. Detected possible meter units: {width:.1f} x {height:.1f}")
+                    logging.info("Applying 1000x scale correction for m to mm conversion")
+                    self._apply_unit_factor_to_collection(collection, 1000.0)
+                    collection.metadata["unit_factor_mm"] = 1000.0
                     collection.metadata["auto_scaled"] = True
                 else:
                     collection.metadata["auto_scaled"] = False
-                    
-                # 更新後の範囲を再計算
-                if collection.metadata.get("auto_scaled"):
-                    actual_bounds = self._calculate_actual_bounds(collection)
-                    if actual_bounds:
-                        width = actual_bounds[2] - actual_bounds[0]
-                        height = actual_bounds[3] - actual_bounds[1]
-                        logging.info(f"After scaling bounds: {width:.1f} x {height:.1f} mm")
             else:
                 collection.metadata["auto_scaled"] = False
+                
+            # 更新後の範囲を再計算
+            if collection.metadata.get("auto_scaled"):
+                actual_bounds = self._calculate_actual_bounds(collection)
+                if actual_bounds:
+                    width = actual_bounds[2] - actual_bounds[0]
+                    height = actual_bounds[3] - actual_bounds[1]
+                    logging.info(f"After scaling bounds: {width:.1f} x {height:.1f} mm")
                 
         return collection
 

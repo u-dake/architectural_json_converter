@@ -11,8 +11,10 @@ import matplotlib.patches as patches
 from matplotlib.collections import LineCollection
 import numpy as np
 import os
+from pathlib import Path
 
 # 日本語フォントの設定（macOSで利用可能なフォント優先）
+matplotlib.rcParams['pdf.fonttype'] = 42  # PDFのフォントをTrueTypeで埋め込む
 matplotlib.rcParams['font.family'] = ['Hiragino Sans', 'Arial Unicode MS', 'DejaVu Sans']
 matplotlib.rcParams['font.size'] = 10
 matplotlib.rcParams['axes.unicode_minus'] = False  # マイナス記号の文字化け対策
@@ -171,10 +173,42 @@ class ArchitecturalPlotter:
         """
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=self.figsize, dpi=self.dpi)
         
+        # 共通の境界設定（全要素から計算）
+        all_elements = []
+        all_elements.extend(difference_result.site_only.elements)
+        all_elements.extend(difference_result.site_with_plan.elements)
+        all_elements.extend(difference_result.new_elements)
+        
+        if all_elements:
+            bounds = []
+            for elem in all_elements:
+                try:
+                    bounds.append(elem.get_bounding_box())
+                except NotImplementedError:
+                    continue
+            
+            if bounds:
+                min_x = min(b.min_x for b in bounds)
+                min_y = min(b.min_y for b in bounds)
+                max_x = max(b.max_x for b in bounds)
+                max_y = max(b.max_y for b in bounds)
+                
+                margin = max((max_x - min_x), (max_y - min_y)) * 0.1
+                xlim = (min_x - margin, max_x + margin)
+                ylim = (min_y - margin, max_y + margin)
+            else:
+                xlim = (-1000, 1000)
+                ylim = (-1000, 1000)
+        else:
+            xlim = (-1000, 1000)
+            ylim = (-1000, 1000)
+        
         # 1. 敷地図のみ
         ax1.set_title('敷地図のみ', fontsize=14, fontweight='bold')
         self.plot_geometry_data(ax1, difference_result.site_only,
                                base_color=self.colors['site_elements'])
+        ax1.set_xlim(xlim)
+        ax1.set_ylim(ylim)
         ax1.set_aspect('equal')
         ax1.grid(True, alpha=0.3)
         
@@ -182,6 +216,8 @@ class ArchitecturalPlotter:
         ax2.set_title('間取り付き', fontsize=14, fontweight='bold')
         self.plot_geometry_data(ax2, difference_result.site_with_plan,
                                base_color=self.colors['site_elements'])
+        ax2.set_xlim(xlim)
+        ax2.set_ylim(ylim)
         ax2.set_aspect('equal')
         ax2.grid(True, alpha=0.3)
         
@@ -200,6 +236,8 @@ class ArchitecturalPlotter:
             
             self.plot_geometry_element(ax3, element, color)
         
+        ax3.set_xlim(xlim)
+        ax3.set_ylim(ylim)
         ax3.set_aspect('equal')
         ax3.grid(True, alpha=0.3)
         
@@ -223,6 +261,8 @@ class ArchitecturalPlotter:
             
             self.plot_geometry_element(ax4, element, color, alpha=1.0)
         
+        ax4.set_xlim(xlim)
+        ax4.set_ylim(ylim)
         ax4.set_aspect('equal')
         ax4.grid(True, alpha=0.3)
         
@@ -364,6 +404,50 @@ class ArchitecturalPlotter:
         plt.close()
         
         print(f"建築要素解析を保存しました: {output_path}")
+        return output_path
+
+    def save_geometry_as_pdf(self, geometry_data: GeometryData, output_path: str) -> str:
+        """
+        単一のGeometryDataをPDFとして保存
+
+        Args:
+            geometry_data: 描画するデータ
+            output_path: 出力PDFファイルパス
+
+        Returns:
+            保存されたファイルパス
+        """
+        fig, ax = plt.subplots(figsize=self.figsize, dpi=self.dpi)
+
+        # 境界設定
+        bounds = [elem.get_bounding_box() for elem in geometry_data.elements if hasattr(elem, 'get_bounding_box')]
+        if bounds:
+            min_x = min(b.min_x for b in bounds)
+            min_y = min(b.min_y for b in bounds)
+            max_x = max(b.max_x for b in bounds)
+            max_y = max(b.max_y for b in bounds)
+            margin = max((max_x - min_x), (max_y - min_y)) * 0.05
+            ax.set_xlim(min_x - margin, max_x + margin)
+            ax.set_ylim(min_y - margin, max_y + margin)
+        
+        ax.set_aspect('equal')
+        ax.grid(True, alpha=0.3)
+
+        # タイトルを設定
+        ax.set_title(f"図面: {Path(output_path).stem}", fontsize=14, fontweight='bold')
+
+        # データの描画
+        self.plot_geometry_data(ax, geometry_data, show_legend=True)
+
+        # 保存
+        output_dir = os.path.dirname(output_path)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        
+        plt.savefig(output_path, format='pdf', dpi=self.dpi, bbox_inches='tight')
+        plt.close()
+
+        print(f"ジオメトリをPDFとして保存しました: {output_path}")
         return output_path
 
 

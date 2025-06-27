@@ -7,13 +7,13 @@ DXF解析結果を統一データ構造に変換するモジュール
 from typing import Dict, List, Any, Optional
 import uuid
 import os
-from data_structures.geometry_data import (
+from src.data_structures.geometry_data import (
     GeometryData, GeometryElement, Point2D, Style, Layer,
     ElementType, ArchitecturalType,
     LineElement, CircleElement, ArcElement, PolylineElement,
     TextElement, BlockElement
 )
-from analyzers.dxf_analyzer import analyze_dxf_structure
+from src.analyzers.dxf_analyzer import analyze_dxf_structure
 
 
 def classify_architectural_type(element: Dict[str, Any], layer_name: str) -> ArchitecturalType:

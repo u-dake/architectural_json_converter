@@ -18,6 +18,23 @@ from pathlib import Path
 import os
 
 
+def update_bounds(min_x, min_y, max_x, max_y, points):
+    for p in points:
+        min_x = min(min_x, p.x)
+        min_y = min(min_y, p.y)
+        max_x = max(max_x, p.x)
+        max_y = max(max_y, p.y)
+    return min_x, min_y, max_x, max_y
+
+def update_bounds_circle(min_x, min_y, max_x, max_y, center, radius):
+    min_x = min(min_x, center.x - radius)
+    min_y = min(min_y, center.y - radius)
+    max_x = max(max_x, center.x + radius)
+    max_y = max(max_y, center.y + radius)
+    return min_x, min_y, max_x, max_y
+
+
+
 def analyze_dxf_structure(filepath: str) -> Dict[str, Any]:
     """
     DXFファイルの全構造を詳細に解析
@@ -225,23 +242,92 @@ def analyze_dxf_structure(filepath: str) -> Dict[str, Any]:
             max_y = max(max_y, insert.y)
 
         elif entity_type == "INSERT":
-            # ブロック参照
-            insert = entity.dxf.insert
-            entity_detail.update(
-                {
+            # ブロック参照を展開して個別のエンティティとして処理
+            try:
+                for sub_entity in entity.explode():
+                    # 展開されたサブエンティティを再帰的に処理する代わりに、
+                    # ここで直接詳細を抽出してリストに追加する
+                    sub_entity_type = sub_entity.dxftype()
+                    if sub_entity_type not in entities_summary:
+                        entities_summary[sub_entity_type] = 0
+                    entities_summary[sub_entity_type] += 1
+
+                    # サブエンティティの詳細情報を抽出（主要なもののみ）
+                    sub_entity_detail = {
+                        "type": sub_entity_type,
+                        "handle": sub_entity.dxf.handle if hasattr(sub_entity.dxf, 'handle') else None,
+                        "layer": sub_entity.dxf.layer if hasattr(sub_entity.dxf, 'layer') else entity.dxf.layer,
+                        "color": sub_entity.dxf.color if hasattr(sub_entity.dxf, 'color') else entity.dxf.color,
+                        "is_sub_entity": True, # ブロック内の要素であることを示すフラグ
+                        "block_name": entity.dxf.name
+                    }
+
+                    if sub_entity_type == "LINE":
+                        start, end = sub_entity.dxf.start, sub_entity.dxf.end
+                        sub_entity_detail.update({
+                            "start": {"x": start.x, "y": start.y, "z": start.z},
+                            "end": {"x": end.x, "y": end.y, "z": end.z}
+                        })
+                        min_x, min_y, max_x, max_y = update_bounds(min_x, min_y, max_x, max_y, [start, end])
+                    
+                    elif sub_entity_type == "CIRCLE":
+                        center, radius = sub_entity.dxf.center, sub_entity.dxf.radius
+                        sub_entity_detail.update({
+                            "center": {"x": center.x, "y": center.y, "z": center.z},
+                            "radius": radius
+                        })
+                        min_x, min_y, max_x, max_y = update_bounds_circle(min_x, min_y, max_x, max_y, center, radius)
+
+                    elif sub_entity_type in ["POLYLINE", "LWPOLYLINE"]:
+                        points = []
+                        if sub_entity.is_lwpolyline:
+                            for p in sub_entity.vertices():
+                                points.append(ezdxf.math.Vec3(p[0], p[1], 0))
+                        else:
+                            for v in sub_entity.vertices:
+                                points.append(v.dxf.location)
+                        
+                        sub_entity_detail.update({
+                            "vertices": [{"x": p.x, "y": p.y, "z": p.z} for p in points],
+                            "is_closed": sub_entity.is_closed
+                        })
+                        min_x, min_y, max_x, max_y = update_bounds(min_x, min_y, max_x, max_y, points)
+
+                    elif sub_entity_type == "ARC":
+                        center, radius = sub_entity.dxf.center, sub_entity.dxf.radius
+                        sub_entity_detail.update({
+                            "center": {"x": center.x, "y": center.y, "z": center.z},
+                            "radius": radius,
+                            "start_angle": sub_entity.dxf.start_angle,
+                            "end_angle": sub_entity.dxf.end_angle,
+                        })
+                        min_x, min_y, max_x, max_y = update_bounds_circle(min_x, min_y, max_x, max_y, center, radius)
+
+                    elif sub_entity_type == "TEXT":
+                        insert = sub_entity.dxf.insert
+                        sub_entity_detail.update({
+                            "text": sub_entity.dxf.text,
+                            "insert": {"x": insert.x, "y": insert.y, "z": insert.z},
+                            "height": sub_entity.dxf.height,
+                        })
+                        min_x, min_y, max_x, max_y = update_bounds(min_x, min_y, max_x, max_y, [insert])
+
+                    # 他のサブエンティティタイプも同様に追加可能
+                    # ...
+
+                    entities_detail.append(sub_entity_detail)
+
+            except Exception as e:
+                # explodeに失敗した場合など
+                # 元のINSERTエンティティ情報を保持
+                insert = entity.dxf.insert
+                entity_detail.update({
                     "block_name": entity.dxf.name,
                     "insert": {"x": insert.x, "y": insert.y, "z": insert.z},
-                    "xscale": entity.dxf.xscale,
-                    "yscale": entity.dxf.yscale,
-                    "zscale": entity.dxf.zscale,
-                    "rotation": entity.dxf.rotation,
-                }
-            )
-            # 境界更新
-            min_x = min(min_x, insert.x)
-            min_y = min(min_y, insert.y)
-            max_x = max(max_x, insert.x)
-            max_y = max(max_y, insert.y)
+                    "error_exploding": str(e)
+                })
+                entities_detail.append(entity_detail)
+            continue # 元のINSERTエンティティは追加しない
 
         elif entity_type == "DIMENSION":
             # 寸法

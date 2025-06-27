@@ -1,342 +1,384 @@
+#!/usr/bin/env python3
 """
-Architectural Drawing Difference Analyzer - Main CLI
+Unified Architectural Drawing Converter & Analyzer
 
-建築図面差分解析システムのメインCLI
-Phase 2統合アプリケーション
+建築図面変換・差分解析統合システム
+- DXF → PDF変換
+- PDF → JSON変換  
+- 図面差分解析
+- 可視化出力
 """
 
-import argparse
-import sys
 import os
-import time
+import sys
+import argparse
+import logging
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, List
 
-# 必要なモジュールをインポート
-from engines.dxf_converter import convert_dxf_to_geometry_data
-from engines.pdf_converter import convert_pdf_to_geometry_data
-from engines.difference_engine import extract_differences, save_difference_result_to_json
-from visualization.matplotlib_visualizer import ArchitecturalPlotter
-from data_structures.geometry_data import DifferenceResult
+# プロジェクトルートをパスに追加
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+from src.engines.safe_dxf_converter import SafeDXFConverter
+from src.visualization.cad_standard_visualizer import CADStandardVisualizer
+
+# 従来機能のインポート（利用可能な場合）
+try:
+    from engines.pdf_converter import convert_pdf_to_geometry_data
+    from engines.difference_engine import extract_differences, save_difference_result_to_json
+    from visualization.matplotlib_visualizer import ArchitecturalPlotter
+    LEGACY_FEATURES_AVAILABLE = True
+except ImportError:
+    LEGACY_FEATURES_AVAILABLE = False
 
 
-class ArchitecturalAnalyzer:
-    """建築図面差分解析システムのメインクラス"""
-    
+class UnifiedArchitecturalConverter:
+    """統合建築図面変換・解析システム"""
+
     def __init__(self, output_dir: str = "output", verbose: bool = True):
         self.output_dir = Path(output_dir)
         self.verbose = verbose
-        self.plotter = ArchitecturalPlotter()
+        self.setup_logging()
         
-        # 出力ディレクトリを作成
+        # 出力ディレクトリの作成
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        
-    def log(self, message: str) -> None:
-        """ログ出力"""
-        if self.verbose:
-            print(f"[INFO] {message}")
-    
-    def error(self, message: str) -> None:
-        """エラー出力"""
-        print(f"[ERROR] {message}", file=sys.stderr)
-    
-    def load_drawing_file(self, filepath: str) -> Tuple[str, object]:
-        """
-        図面ファイルを読み込み、統一データ構造に変換
-        
-        Args:
-            filepath: ファイルパス
-            
-        Returns:
-            (ファイルタイプ, GeometryDataオブジェクト)
-            
-        Raises:
-            ValueError: 対応していないファイル形式
-            FileNotFoundError: ファイルが見つからない
-        """
-        filepath = str(filepath)
-        
-        if not os.path.exists(filepath):
-            raise FileNotFoundError(f"ファイルが見つかりません: {filepath}")
-        
-        file_ext = Path(filepath).suffix.lower()
-        
-        if file_ext == '.dxf':
-            self.log(f"DXFファイルを読み込み中: {filepath}")
-            geometry_data = convert_dxf_to_geometry_data(filepath)
-            return 'dxf', geometry_data
-            
-        elif file_ext == '.pdf':
-            self.log(f"PDFファイルを読み込み中: {filepath}")
-            geometry_data = convert_pdf_to_geometry_data(filepath)
-            return 'pdf', geometry_data
-            
-        else:
-            raise ValueError(f"対応していないファイル形式: {file_ext}")
-    
-    def analyze_differences(self, site_file: str, plan_file: str, 
-                          tolerance: float = 0.5) -> DifferenceResult:
-        """
-        2つの図面ファイルの差分を解析
+        (self.output_dir / "pdf").mkdir(exist_ok=True)
+        (self.output_dir / "json").mkdir(exist_ok=True)
+        (self.output_dir / "analysis").mkdir(exist_ok=True)
+
+    def setup_logging(self):
+        """ログ設定"""
+        log_level = logging.INFO if self.verbose else logging.WARNING
+        logging.basicConfig(
+            level=log_level,
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.StreamHandler(),
+                logging.FileHandler(self.output_dir / 'conversion.log')
+            ]
+        )
+
+    def convert_dxf_to_pdf(self, input_file: str, output_file: Optional[str] = None, scale: str = "1:100") -> bool:
+        """DXFファイルをPDFに変換
         
         Args:
-            site_file: 敷地図ファイルパス
-            plan_file: 間取り図ファイルパス
-            tolerance: 類似度の閾値
+            input_file: 入力DXFファイルパス
+            output_file: 出力PDFファイルパス（省略時は自動生成）
             
         Returns:
-            差分解析結果
+            変換成功の場合True
         """
-        start_time = time.time()
-        
-        # ファイル読み込み
-        site_type, site_data = self.load_drawing_file(site_file)
-        plan_type, plan_data = self.load_drawing_file(plan_file)
-        
-        self.log(f"敷地図: {len(site_data.elements)}要素 ({site_type})")
-        self.log(f"間取り図: {len(plan_data.elements)}要素 ({plan_type})")
-        
-        # 差分解析実行
-        self.log("差分解析を実行中...")
-        result = extract_differences(site_data, plan_data, tolerance)
-        
-        # 処理時間を記録
-        processing_time = time.time() - start_time
-        result.analysis_metadata["processing_time"] = processing_time
-        result.analysis_metadata["site_file"] = site_file
-        result.analysis_metadata["plan_file"] = plan_file
-        result.analysis_metadata["tolerance"] = tolerance
-        
-        # 結果サマリーを表示
-        stats = result.get_statistics()
-        self.log(f"解析完了 (処理時間: {processing_time:.2f}秒)")
-        self.log(f"新規要素: {stats['total_new_elements']}個")
-        self.log(f"壁: {stats['walls_detected']}個, 開口部: {stats['openings_detected']}個, 設備: {stats['fixtures_detected']}個")
-        
-        return result
-    
-    def save_results(self, result: DifferenceResult, 
-                    base_filename: str = "analysis_result") -> str:
-        """
-        解析結果をJSONファイルに保存
-        
-        Args:
-            result: 差分解析結果
-            base_filename: ベースファイル名
-            
-        Returns:
-            保存されたファイルパス
-        """
-        output_path = self.output_dir / f"{base_filename}.json"
-        save_difference_result_to_json(result, str(output_path))
-        return str(output_path)
-    
-    def create_visualizations(self, result: DifferenceResult, 
-                            base_filename: str = "visualization") -> Tuple[str, str]:
-        """
-        可視化画像を生成
-        
-        Args:
-            result: 差分解析結果
-            base_filename: ベースファイル名
-            
-        Returns:
-            (差分可視化パス, 建築要素解析パス)
-        """
-        self.log("可視化を生成中...")
-        
-        # 差分可視化
-        diff_viz_path = self.output_dir / f"{base_filename}_difference.png"
-        self.plotter.plot_difference_result(result, str(diff_viz_path))
-        
-        # 建築要素解析
-        arch_analysis_path = self.output_dir / f"{base_filename}_architectural.png"
-        self.plotter.plot_architectural_analysis(result, str(arch_analysis_path))
-        
-        return str(diff_viz_path), str(arch_analysis_path)
-    
-    def run_complete_analysis(self, site_file: str, plan_file: str,
-                            tolerance: float = 0.5,
-                            enable_visualization: bool = True,
-                            enable_interactive: bool = False,
-                            base_filename: str = "analysis") -> dict:
-        """
-        完全な解析パイプラインを実行
-        
-        Args:
-            site_file: 敷地図ファイルパス
-            plan_file: 間取り図ファイルパス
-            tolerance: 類似度の閾値
-            enable_visualization: 可視化の有効化
-            enable_interactive: インタラクティブ可視化の有効化
-            base_filename: 出力ファイルのベース名
-            
-        Returns:
-            実行結果の辞書
-        """
+        if not self.validate_input_file(input_file, '.dxf'):
+            return False
+
+        if output_file is None:
+            base_name = Path(input_file).stem
+            output_file = self.output_dir / "pdf" / f"{base_name}.pdf"
+
         try:
-            # 差分解析
-            result = self.analyze_differences(site_file, plan_file, tolerance)
+            logging.info(f"Converting DXF to PDF: {input_file} -> {output_file}")
             
-            # 結果保存
-            json_path = self.save_results(result, base_filename)
+            # DXFファイルを変換
+            converter = SafeDXFConverter()
+            geometry = converter.convert_dxf_file(input_file, include_paperspace=True)
             
-            output_files = {
-                "json": json_path,
-                "visualizations": []
-            }
+            if not geometry.elements:
+                logging.warning("No geometry elements found in DXF file")
+                return False
             
-            # 可視化生成
-            if enable_visualization:
-                diff_viz, arch_viz = self.create_visualizations(result, base_filename)
-                output_files["visualizations"] = [diff_viz, arch_viz]
+            logging.info(f"Converted {len(geometry.elements)} elements")
             
-            # インタラクティブ可視化（将来実装）
-            if enable_interactive:
-                self.log("インタラクティブ可視化は将来実装予定です")
+            # 要素タイプ別の統計
+            self.log_element_statistics(geometry)
             
-            # 統計情報
-            stats = result.get_statistics()
+            # A3、1/100スケールのPDFに変換
+            visualizer = CADStandardVisualizer()
             
-            return {
-                "success": True,
-                "statistics": stats,
-                "output_files": output_files,
-                "processing_time": result.analysis_metadata.get("processing_time", 0)
-            }
+            # ファイル名からタイトルを生成
+            title = Path(input_file).stem
+            
+            visualizer.visualize_to_a3_pdf(
+                geometry,
+                str(output_file),
+                scale=scale,
+                dpi=300,
+                show_border=True,
+                title=title
+            )
+            
+            # 出力ファイルの検証
+            output_path = Path(output_file)
+            if output_path.exists() and output_path.stat().st_size > 0:
+                logging.info(f"DXF to PDF conversion completed: {output_file}")
+                return True
+            else:
+                logging.error("Output PDF was not created properly")
+                return False
+                
+        except Exception as e:
+            logging.error(f"Error in DXF to PDF conversion: {e}")
+            return False
+
+    def convert_pdf_to_json(self, input_file: str, output_file: Optional[str] = None) -> bool:
+        """PDFファイルをJSONに変換（従来機能）
+        
+        Args:
+            input_file: 入力PDFファイルパス
+            output_file: 出力JSONファイルパス（省略時は自動生成）
+            
+        Returns:
+            変換成功の場合True
+        """
+        if not LEGACY_FEATURES_AVAILABLE:
+            logging.error("Legacy PDF conversion features not available")
+            return False
+
+        if not self.validate_input_file(input_file, '.pdf'):
+            return False
+
+        if output_file is None:
+            base_name = Path(input_file).stem
+            output_file = self.output_dir / "json" / f"{base_name}.json"
+
+        try:
+            logging.info(f"Converting PDF to JSON: {input_file} -> {output_file}")
+            
+            # PDFを解析してJSON変換
+            geometry_data = convert_pdf_to_geometry_data(input_file)
+            
+            # JSONファイルに保存
+            import json
+            with open(output_file, 'w', encoding='utf-8') as f:
+                json.dump(geometry_data, f, ensure_ascii=False, indent=2)
+            
+            logging.info(f"PDF to JSON conversion completed: {output_file}")
+            return True
             
         except Exception as e:
-            self.error(f"解析エラー: {e}")
-            import traceback
-            if self.verbose:
-                traceback.print_exc()
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            logging.error(f"Error in PDF to JSON conversion: {e}")
+            return False
+
+    def analyze_differences(self, site_file: str, floor_file: str, output_file: Optional[str] = None) -> bool:
+        """図面差分解析（従来機能）
+        
+        Args:
+            site_file: 敷地図ファイルパス
+            floor_file: 完成形図面ファイルパス
+            output_file: 出力JSONファイルパス（省略時は自動生成）
+            
+        Returns:
+            解析成功の場合True
+        """
+        if not LEGACY_FEATURES_AVAILABLE:
+            logging.error("Legacy difference analysis features not available")
+            return False
+
+        for file_path in [site_file, floor_file]:
+            if not Path(file_path).exists():
+                logging.error(f"Input file not found: {file_path}")
+                return False
+
+        if output_file is None:
+            output_file = self.output_dir / "analysis" / "difference_analysis.json"
+
+        try:
+            logging.info(f"Analyzing differences: {site_file} vs {floor_file}")
+            
+            # 差分解析の実行
+            differences = extract_differences(site_file, floor_file)
+            
+            # 結果をJSONファイルに保存
+            save_difference_result_to_json(differences, str(output_file))
+            
+            logging.info(f"Difference analysis completed: {output_file}")
+            return True
+            
+        except Exception as e:
+            logging.error(f"Error in difference analysis: {e}")
+            return False
+
+    def batch_convert_dxf(self, input_dir: str, pattern: str = "*.dxf", scale: str = "1:100") -> List[str]:
+        """DXFファイルの一括変換
+        
+        Args:
+            input_dir: 入力ディレクトリ
+            pattern: ファイルパターン
+            
+        Returns:
+            変換されたPDFファイルのリスト
+        """
+        input_path = Path(input_dir)
+        if not input_path.exists():
+            logging.error(f"Input directory not found: {input_dir}")
+            return []
+
+        dxf_files = list(input_path.glob(pattern))
+        converted_files = []
+
+        logging.info(f"Found {len(dxf_files)} DXF files for batch conversion")
+
+        for dxf_file in dxf_files:
+            output_file = self.output_dir / "pdf" / f"{dxf_file.stem}.pdf"
+            if self.convert_dxf_to_pdf(str(dxf_file), str(output_file), scale):
+                converted_files.append(str(output_file))
+
+        logging.info(f"Batch conversion completed: {len(converted_files)}/{len(dxf_files)} files")
+        return converted_files
+
+    def validate_input_file(self, file_path: str, expected_ext: str) -> bool:
+        """入力ファイルの検証"""
+        path = Path(file_path)
+        
+        if not path.exists():
+            logging.error(f"Input file not found: {file_path}")
+            return False
+        
+        if not file_path.lower().endswith(expected_ext):
+            logging.error(f"Input file is not a {expected_ext} file: {file_path}")
+            return False
+        
+        try:
+            file_size = path.stat().st_size
+            if file_size == 0:
+                logging.error(f"Input file is empty: {file_path}")
+                return False
+            logging.info(f"Input file size: {file_size:,} bytes")
+        except OSError as e:
+            logging.error(f"Cannot access input file: {e}")
+            return False
+        
+        return True
+
+    def log_element_statistics(self, geometry):
+        """要素統計のログ出力"""
+        element_types = {}
+        for element in geometry.elements:
+            element_type = type(element).__name__
+            element_types[element_type] = element_types.get(element_type, 0) + 1
+        
+        logging.info("Element types:")
+        for elem_type, count in sorted(element_types.items()):
+            logging.info(f"  {elem_type}: {count}")
 
 
-def create_parser() -> argparse.ArgumentParser:
-    """コマンドライン引数パーサーを作成"""
+def create_parser():
+    """コマンドライン引数パーサーの作成"""
     parser = argparse.ArgumentParser(
-        description="建築図面差分解析システム",
+        description='Unified Architectural Drawing Converter & Analyzer',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-使用例:
-  # 基本的な差分解析
-  python src/main.py site.dxf plan.dxf --visualize
-  
-  # 全機能での解析
-  python src/main.py site.dxf plan.dxf --visualize --interactive --output-dir results/ --tolerance 0.3
-  
-  # 異なるファイル形式での解析
-  python src/main.py site.pdf plan.dxf --visualize --output-dir mixed_analysis/
+Examples:
+  # DXF to PDF conversion
+  python main_unified.py dxf2pdf input.dxf
+
+  # PDF to JSON conversion  
+  python main_unified.py pdf2json input.pdf
+
+  # Difference analysis
+  python main_unified.py diff site.dxf floor.dxf
+
+  # Batch DXF conversion
+  python main_unified.py batch /path/to/dxf/files/
         """
     )
     
-    # 必須引数
     parser.add_argument(
-        "site_file",
-        help="敷地図ファイルパス (.dxf または .pdf)"
-    )
-    parser.add_argument(
-        "plan_file", 
-        help="間取り図ファイルパス (.dxf または .pdf)"
+        'command',
+        choices=['dxf2pdf', 'pdf2json', 'diff', 'batch'],
+        help='Command to execute'
     )
     
-    # オプション引数
     parser.add_argument(
-        "--visualize", "-v",
-        action="store_true",
-        help="matplotlib による可視化を生成"
+        'files',
+        nargs='+',
+        help='Input file(s) or directory'
     )
+    
     parser.add_argument(
-        "--interactive", "-i",
-        action="store_true", 
-        help="Plotly によるインタラクティブ可視化を生成（将来実装）"
+        '-o', '--output',
+        help='Output file or directory'
     )
+    
     parser.add_argument(
-        "--output-dir", "-o",
-        default="output",
-        help="出力ディレクトリ (デフォルト: output)"
+        '--output-dir',
+        default='output',
+        help='Output directory (default: output)'
     )
+    
     parser.add_argument(
-        "--tolerance", "-t",
-        type=float,
-        default=0.5,
-        help="要素マッチングの類似度閾値 (0.0-1.0, デフォルト: 0.5)"
+        '-v', '--verbose',
+        action='store_true',
+        help='Verbose output'
     )
+    
     parser.add_argument(
-        "--quiet", "-q",
-        action="store_true",
-        help="詳細ログを無効化"
+        '--pattern',
+        default='*.dxf',
+        help='File pattern for batch processing (default: *.dxf)'
     )
+    
     parser.add_argument(
-        "--filename", "-f",
-        default="analysis",
-        help="出力ファイルのベース名 (デフォルト: analysis)"
+        '--scale',
+        default='1:100',
+        help='Drawing scale for PDF output (default: 1:100)'
     )
     
     return parser
 
 
 def main():
-    """メイン関数"""
+    """メイン処理"""
     parser = create_parser()
     args = parser.parse_args()
-    
-    # 引数検証
-    if not (0.0 <= args.tolerance <= 1.0):
-        print("エラー: tolerance は 0.0 から 1.0 の間で指定してください", file=sys.stderr)
-        sys.exit(1)
-    
-    # 解析システム初期化
-    analyzer = ArchitecturalAnalyzer(
+
+    # コンバーターの初期化
+    converter = UnifiedArchitecturalConverter(
         output_dir=args.output_dir,
-        verbose=not args.quiet
+        verbose=args.verbose
     )
-    
-    if not args.quiet:
-        print("🏗️  建築図面差分解析システム Phase 2")
-        print(f"敷地図: {args.site_file}")
-        print(f"間取り図: {args.plan_file}")
-        print(f"出力先: {args.output_dir}")
-        print("-" * 50)
-    
-    # 完全解析実行
-    result = analyzer.run_complete_analysis(
-        site_file=args.site_file,
-        plan_file=args.plan_file,
-        tolerance=args.tolerance,
-        enable_visualization=args.visualize,
-        enable_interactive=args.interactive,
-        base_filename=args.filename
-    )
-    
-    # 結果表示
-    if result["success"]:
-        if not args.quiet:
-            print("\n✅ 解析完了!")
-            print(f"処理時間: {result['processing_time']:.2f}秒")
-            
-            stats = result["statistics"]
-            print(f"\n📊 解析結果:")
-            print(f"  新規要素: {stats['total_new_elements']}個")
-            print(f"  壁: {stats['walls_detected']}個")
-            print(f"  開口部: {stats['openings_detected']}個") 
-            print(f"  設備: {stats['fixtures_detected']}個")
-            print(f"  削除要素: {stats['removed_elements']}個")
-            
-            print(f"\n📁 出力ファイル:")
-            print(f"  解析結果: {result['output_files']['json']}")
-            for viz_file in result['output_files']['visualizations']:
-                print(f"  可視化: {viz_file}")
-        
-        sys.exit(0)
-    else:
-        print(f"\n❌ 解析失敗: {result['error']}", file=sys.stderr)
-        sys.exit(1)
+
+    success = False
+
+    try:
+        if args.command == 'dxf2pdf':
+            if len(args.files) != 1:
+                print("Error: dxf2pdf requires exactly one input file")
+                return 1
+            success = converter.convert_dxf_to_pdf(args.files[0], args.output, args.scale)
+
+        elif args.command == 'pdf2json':
+            if len(args.files) != 1:
+                print("Error: pdf2json requires exactly one input file")
+                return 1
+            success = converter.convert_pdf_to_json(args.files[0], args.output)
+
+        elif args.command == 'diff':
+            if len(args.files) != 2:
+                print("Error: diff requires exactly two input files")
+                return 1
+            success = converter.analyze_differences(args.files[0], args.files[1], args.output)
+
+        elif args.command == 'batch':
+            if len(args.files) != 1:
+                print("Error: batch requires exactly one input directory")
+                return 1
+            converted_files = converter.batch_convert_dxf(args.files[0], args.pattern, args.scale)
+            success = len(converted_files) > 0
+
+        else:
+            print(f"Error: Unknown command '{args.command}'")
+            return 1
+
+    except KeyboardInterrupt:
+        print("\nOperation cancelled by user")
+        return 1
+    except Exception as e:
+        logging.error(f"Unexpected error: {e}")
+        return 1
+
+    return 0 if success else 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

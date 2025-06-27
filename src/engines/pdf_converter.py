@@ -7,12 +7,12 @@ PDF解析結果を統一データ構造に変換するモジュール
 from typing import Dict, List, Any, Optional
 import uuid
 import numpy as np
-from data_structures.geometry_data import (
+from src.data_structures.geometry_data import (
     GeometryData, GeometryElement, Point2D, Style, Layer,
     ElementType, ArchitecturalType,
     LineElement, PolylineElement, TextElement
 )
-from analyzers.pdf_analyzer import analyze_pdf_structure
+from src.analyzers.pdf_analyzer import analyze_pdf_structure
 
 
 def classify_pdf_architectural_type(element: Dict[str, Any], text_content: str = "") -> ArchitecturalType:

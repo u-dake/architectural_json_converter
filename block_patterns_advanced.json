@@ -1,0 +1,353 @@
+{
+  "analysis_results": {
+    "FcPack%d0": {
+      "estimated_unit": "mm",
+      "confidence": 0.95,
+      "is_fixed_size": false,
+      "element_type": "equipment",
+      "context_units": {
+        "敷地図": "mm",
+        "完成図": "mm"
+      },
+      "mixed_unit_pattern": null,
+      "stats": {
+        "count": 20,
+        "sizes": [
+          [
+            230.7816787639194,
+            227.7937399135359
+          ],
+          [
+            125.14595692890501,
+            146.17500000000007
+          ],
+          [
+            282.14019181418723,
+            220.8125468882397
+          ],
+          [
+            1036.5881607274753,
+            972.7237598944934
+          ],
+          [
+            310.5280989449466,
+            224.364431552333
+          ]
+        ],
+        "avg_size": [
+          431.9,
+          389.4
+        ]
+      }
+    },
+    "FcPack%d1": {
+      "estimated_unit": "mm",
+      "confidence": 0.95,
+      "is_fixed_size": false,
+      "element_type": "equipment",
+      "context_units": {
+        "敷地図": "mm",
+        "完成図": "mm"
+      },
+      "mixed_unit_pattern": null,
+      "stats": {
+        "count": 20,
+        "sizes": [
+          [
+            400.0,
+            277.0
+          ],
+          [
+            1095.0933811586399,
+            972.7237598944132
+          ],
+          [
+            400.0,
+            277.0
+          ],
+          [
+            435.2175590661759,
+            304.4547759602636
+          ],
+          [
+            400.0,
+            277.0
+          ]
+        ],
+        "avg_size": [
+          423.3,
+          354.9
+        ]
+      }
+    },
+    "FcPack%d2": {
+      "estimated_unit": "mm",
+      "confidence": 0.95,
+      "is_fixed_size": true,
+      "element_type": "equipment",
+      "context_units": {
+        "完成図": "mm"
+      },
+      "mixed_unit_pattern": null,
+      "stats": {
+        "count": 10,
+        "sizes": [
+          [
+            400.0,
+            277.0
+          ],
+          [
+            400.0,
+            277.0
+          ],
+          [
+            400.0,
+            277.0
+          ],
+          [
+            400.0,
+            277.0
+          ],
+          [
+            400.0,
+            277.0
+          ]
+        ],
+        "avg_size": [
+          400.0,
+          277.0
+        ]
+      }
+    },
+    "FcPack%d4": {
+      "estimated_unit": "mm",
+      "confidence": 0.625,
+      "is_fixed_size": false,
+      "element_type": "equipment",
+      "context_units": {
+        "完成図": "mm"
+      },
+      "mixed_unit_pattern": "insert:m,content:mm",
+      "stats": {
+        "count": 5,
+        "sizes": [
+          [
+            86.80000000000005,
+            32.0
+          ],
+          [
+            86.80000000000001,
+            40.000000000000014
+          ],
+          [
+            86.80000000000001,
+            32.0
+          ],
+          [
+            14.38785858426651,
+            31.973019076147807
+          ],
+          [
+            5.0,
+            5.0
+          ]
+        ],
+        "avg_size": [
+          56.0,
+          28.2
+        ]
+      }
+    },
+    "FcPack%d3": {
+      "estimated_unit": "mm",
+      "confidence": 0.625,
+      "is_fixed_size": false,
+      "element_type": "equipment",
+      "context_units": {
+        "完成図": "mm"
+      },
+      "mixed_unit_pattern": "insert:m,content:mm",
+      "stats": {
+        "count": 4,
+        "sizes": [
+          [
+            89.20000000000005,
+            32.0
+          ],
+          [
+            89.20000000000005,
+            32.0
+          ],
+          [
+            13.591375853424516,
+            30.20305745205448
+          ],
+          [
+            86.80000000000005,
+            32.0
+          ]
+        ],
+        "avg_size": [
+          69.7,
+          31.6
+        ]
+      }
+    },
+    "FcPack%d6": {
+      "estimated_unit": "m",
+      "confidence": 0.5,
+      "is_fixed_size": false,
+      "element_type": "equipment",
+      "context_units": {
+        "完成図": "mm"
+      },
+      "mixed_unit_pattern": "insert:m,content:mm",
+      "stats": {
+        "count": 1,
+        "sizes": [
+          [
+            4.0,
+            4.0
+          ]
+        ],
+        "avg_size": [
+          4.0,
+          4.0
+        ]
+      }
+    }
+  },
+  "pattern_dictionary": {
+    "patterns": {
+      "FcPack%d0": {
+        "敷地図": {
+          "unit": "mm",
+          "avg_size": [
+            279.7,
+            209.9
+          ]
+        },
+        "完成図": {
+          "unit": "mm",
+          "avg_size": [
+            584.1,
+            568.9
+          ]
+        }
+      },
+      "FcPack%d1": {
+        "敷地図": {
+          "unit": "mm",
+          "avg_size": [
+            400.0,
+            277.0
+          ]
+        },
+        "完成図": {
+          "unit": "mm",
+          "avg_size": [
+            446.7,
+            432.9
+          ]
+        }
+      },
+      "FcPack%d2": {
+        "完成図": {
+          "unit": "mm",
+          "avg_size": [
+            400.0,
+            277.0
+          ],
+          "fixed_size": [
+            400.0,
+            277.0
+          ]
+        }
+      },
+      "FcPack%d4": {
+        "完成図": {
+          "unit": "mm",
+          "avg_size": [
+            56.0,
+            28.2
+          ]
+        }
+      },
+      "FcPack%d3": {
+        "完成図": {
+          "unit": "mm",
+          "avg_size": [
+            69.7,
+            31.6
+          ]
+        }
+      },
+      "FcPack%d6": {
+        "完成図": {
+          "unit": "mm",
+          "avg_size": [
+            4.0,
+            4.0
+          ]
+        }
+      }
+    },
+    "rules": [
+      {
+        "pattern": "FcPack%d0",
+        "context": "*",
+        "unit": "mm",
+        "confidence": 0.95
+      },
+      {
+        "pattern": "FcPack%d1",
+        "context": "*",
+        "unit": "mm",
+        "confidence": 0.95
+      },
+      {
+        "pattern": "FcPack%d2",
+        "context": "*",
+        "unit": "mm",
+        "confidence": 0.95,
+        "note": "固定サイズブロック"
+      },
+      {
+        "pattern": "FcPack%d[0-9]",
+        "context": "*",
+        "unit": "mm",
+        "confidence": 0.95,
+        "note": "3個のブロックから推定"
+      }
+    ]
+  },
+  "global_stats": {
+    "insert_unit_hint": "ambiguous",
+    "insert_range": {
+      "x_min": 41.09885146012529,
+      "x_max": 358.7865996008538,
+      "y_min": 65.79627357576291,
+      "y_max": 254.8,
+      "x_span": 317.6877481407285,
+      "y_span": 189.0037264242371
+    },
+    "total_blocks_analyzed": 6
+  },
+  "summary": {
+    "total_blocks": 6,
+    "high_confidence_blocks": 3,
+    "fixed_size_blocks": 1,
+    "unit_distribution": {
+      "mm": 5,
+      "m": 1
+    },
+    "corrected_blocks": [
+      {
+        "block": "FcPack%d4",
+        "old_estimation": "m",
+        "new_estimation": "mm",
+        "reason": "固定的な設備要素として再分類"
+      }
+    ]
+  }
+}

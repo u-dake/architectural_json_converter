@@ -76,7 +76,7 @@ architectural_json_converter/
 │   ├── visualization/     # PDF生成・可視化
 │   └── main.py           # 統合CLIアプリケーション
 ├── tests/                 # テストコード
-├── tools/debug/           # デバッグツール
+├── tools/debug/           # デバッグ・分析ツール
 ├── sample_data/           # サンプルファイル
 ├── output/                # 出力ディレクトリ
 └── _docs/                 # 実装ドキュメント
@@ -88,6 +88,7 @@ architectural_json_converter/
 - DXFファイルの単位系を自動検出（メートル/ミリメートル混在対応）
 - A3サイズと縮尺から逆算して建築図面の妥当性をチェック
 - 5m〜2kmの範囲を建築物として妥当と判定
+- **NEW**: ブロックパターン学習による高精度単位推定
 
 ### CAD標準準拠
 - A3サイズ（420×297mm）での出力
@@ -106,7 +107,7 @@ architectural_json_converter/
 ## 技術的な課題
 
 ### DXF単位系の混在
-一部のDXFファイルでINSERT座標（メートル）とブロック内容（ミリメートル）が混在するケースがあります。詳細は[単位系混在分析](_docs/2025-06-28_mixed_units_analysis.md)を参照。
+一部のDXFファイルでINSERT座標（メートル）とブロック内容（ミリメートル）が混在するケースがあります。[高度なブロックパターン分析](_docs/2025-06-28_advanced_block_pattern_analysis.md)により、データドリブンな単位推定を実現しました。詳細は[単位系混在分析](_docs/2025-06-28_mixed_units_analysis.md)も参照。
 
 ### 差分解析の精度
 敷地図と完成図の差分解析により、新規追加された建築要素を高精度で検出・分類できます。詳細は[差分解析評価](_docs/2025-06-28_dxf_comprehensive_analysis.md)を参照。

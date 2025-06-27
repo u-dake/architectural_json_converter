@@ -66,16 +66,28 @@ The system is organized into the following components:
    - Validate drawing size against architectural standards (5m-2km range)
    - Check A3 paper compatibility with standard scales (1:50 to 1:5000)
    - Automatically apply meter→mm conversion when needed
+   - **NEW**: Block pattern-based unit estimation using machine learning approach
 
 2. **Mixed Unit Handling**:
    - INSERT coordinates may be in meters while block content is in millimeters
    - Trust INSERT coordinates for overall building size
    - See `_docs/2025-06-28_mixed_units_analysis.md` for detailed analysis
+   - **NEW**: Advanced block pattern analysis in `tools/debug/analyze_block_patterns_advanced.py`
 
 3. **CAD Standard Output**:
    - A3 size (420×297mm) paper format
    - Proper scale notation and drawing frame
    - Support for standard architectural scales
+
+### Block Pattern Analysis
+Advanced unit detection system implemented:
+- Analyzes block patterns across multiple DXF files
+- Context-aware estimation (site plan vs floor plan)
+- Fixed-size block detection (e.g., FcPack%d2: 400×277mm)
+- Confidence scoring for unit estimation
+- Pattern dictionary generation for automatic unit inference
+
+See `_docs/2025-06-28_advanced_block_pattern_analysis.md` for implementation details.
 
 ## Testing Approach
 

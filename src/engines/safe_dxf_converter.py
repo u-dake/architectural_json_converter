@@ -239,42 +239,36 @@ class SafeDXFConverter:
             width = actual_bounds[2] - actual_bounds[0]
             height = actual_bounds[3] - actual_bounds[1]
             logging.info(f"Actual converted bounds: {width:.1f} x {height:.1f} (unit factor: {self.unit_factor})")
+            logging.info(f"INSUNITS code: {collection.metadata.get('insunits_code', 'N/A')}")
             
             # 実際のサイズに基づいて単位補正
-            # INSUNITSがmm(4)でも、実際の座標値がcm単位の場合がある
-            if self.unit_factor == 1.0:  # mm単位と認識されている場合
-                # 枠線を除外した境界でも判定を試みる
-                bounds_without_border = self._calculate_actual_bounds(collection, exclude_border=True)
-                if bounds_without_border:
-                    width_no_border = bounds_without_border[2] - bounds_without_border[0]
-                    height_no_border = bounds_without_border[3] - bounds_without_border[1]
-                    logging.info(f"Bounds without border: {width_no_border:.1f} x {height_no_border:.1f}")
-                    
-                    # 枠線なしでのサイズが建築図面の典型的範囲に入るかチェック
-                    if 50 < width_no_border < 500 and 50 < height_no_border < 500:
-                        # cm単位と判断
-                        logging.info("Detected cm units based on content bounds (excluding border)")
-                        width = width_no_border
-                        height = height_no_border
-                
+            # INSUNITSがmm(4)でも、実際の座標値が異なる単位の場合がある
+            if self.unit_factor == 1.0 and collection.metadata.get('insunits_code') == 4:  # INSUNITSがmm(4)の場合
                 # 建築図面の典型的なサイズ範囲をチェック
-                # 5m〜50mの範囲を想定（5000mm〜50000mm）、またはcm単位の50〜500
-                if (500 < width < 5000 and 500 < height < 5000) or \
-                   (50 < width < 500 and 50 < height < 500):
-                    # cm単位と判断して10倍
-                    logging.info("Applying 10x scale correction for cm to mm conversion")
-                    self._apply_unit_factor_to_collection(collection, 10.0)
-                    collection.metadata["unit_factor_mm"] = 10.0
+                if 10 < width < 100 and 10 < height < 100:
+                    # メートル単位と判断して1000倍
+                    logging.info(f"Detected meter units: {width:.1f} x {height:.1f} (should be mm)")
+                    logging.info("Applying 1000x scale correction for m to mm conversion")
+                    self._apply_unit_factor_to_collection(collection, 1000.0)
+                    collection.metadata["unit_factor_mm"] = 1000.0
                     collection.metadata["auto_scaled"] = True
+                elif 100 < width < 5000 and 100 < height < 5000:
+                    # デシメートル単位と判断して100倍（建築図面の典型的なサイズ）
+                    logging.info(f"Detected decimeter units: {width:.1f} x {height:.1f} (should be mm)")
+                    logging.info("Applying 100x scale correction for dm to mm conversion")
+                    self._apply_unit_factor_to_collection(collection, 100.0)
+                    collection.metadata["unit_factor_mm"] = 100.0
+                    collection.metadata["auto_scaled"] = True
+                else:
+                    collection.metadata["auto_scaled"] = False
                     
-                    # 更新後の範囲を再計算
+                # 更新後の範囲を再計算
+                if collection.metadata.get("auto_scaled"):
                     actual_bounds = self._calculate_actual_bounds(collection)
                     if actual_bounds:
                         width = actual_bounds[2] - actual_bounds[0]
                         height = actual_bounds[3] - actual_bounds[1]
                         logging.info(f"After scaling bounds: {width:.1f} x {height:.1f} mm")
-                else:
-                    collection.metadata["auto_scaled"] = False
             else:
                 collection.metadata["auto_scaled"] = False
                 

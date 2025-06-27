@@ -117,3 +117,8 @@ data/sample_*/*.json
 # But keep the sample files
 !250618_図面セット/*.dxf
 !250618_図面セット/*.pdf
+# Refactoring additions
+output/
+tools/debug/output/
+legacy/
+

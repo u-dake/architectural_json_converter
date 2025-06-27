@@ -112,6 +112,12 @@ class CADStandardVisualizer:
             display_width_mm = drawing_width_mm * effective_scale_factor
             display_height_mm = drawing_height_mm * effective_scale_factor
             
+            # デバッグログ追加
+            print(f"DEBUG: CAD scale factor: {cad_scale_factor}")
+            print(f"DEBUG: Drawing bounds: {bounds}")
+            print(f"DEBUG: Effective scale: {effective_scale_factor}")
+            print(f"DEBUG: Display size on paper: {display_width_mm:.1f} x {display_height_mm:.1f} mm")
+            
             # A3用紙に収まるかチェック
             if display_width_mm > available_width or display_height_mm > available_height:
                 print(f"WARNING: Drawing size ({display_width_mm:.1f} x {display_height_mm:.1f} mm) exceeds A3 paper at scale {scale}")

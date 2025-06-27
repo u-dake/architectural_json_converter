@@ -66,6 +66,114 @@ class SafeDXFConverter:
         }
         return unit_map.get(units_code, 1.0)
 
+    def _validate_size_for_architectural_drawing(self, width_mm: float, height_mm: float) -> Tuple[bool, str]:
+        """
+        建築図面として妥当なサイズかをチェック
+        
+        Returns:
+            (is_valid, reason)
+        """
+        # A3サイズ（横置き）
+        A3_WIDTH_MM = 420
+        A3_HEIGHT_MM = 297
+        MARGIN_MM = 20  # 余白
+        
+        # 利用可能な描画エリア
+        available_width = A3_WIDTH_MM - 2 * MARGIN_MM
+        available_height = A3_HEIGHT_MM - 2 * MARGIN_MM
+        
+        # 一般的な建築図面スケールでの最大実世界サイズ
+        scale_limits = {
+            "1:50": (available_width * 50, available_height * 50),      # 約20m × 14m
+            "1:100": (available_width * 100, available_height * 100),   # 約40m × 28m
+            "1:200": (available_width * 200, available_height * 200),   # 約80m × 55m
+            "1:500": (available_width * 500, available_height * 500),   # 約200m × 140m
+            "1:1000": (available_width * 1000, available_height * 1000), # 約400m × 280m
+            "1:2000": (available_width * 2000, available_height * 2000), # 約800m × 550m
+            "1:5000": (available_width * 5000, available_height * 5000), # 約2000m × 1400m
+        }
+        
+        # サイズをメートルに変換
+        width_m = width_mm / 1000
+        height_m = height_mm / 1000
+        
+        # 建築物として妥当なサイズかチェック
+        # 建築図面は最低でも5m×5m程度は必要（小さな部屋でも）
+        if width_m < 5 or height_m < 5:
+            return False, f"Too small: {width_m:.1f}m × {height_m:.1f}m (smaller than 5m)"
+        
+        # 2kmを超える建物は非現実的（大規模施設・空港等を考慮）
+        if width_m > 2000 or height_m > 2000:
+            return False, f"Too large: {width_m:.0f}m × {height_m:.0f}m (larger than 2km)"
+        
+        # どのスケールで収まるかチェック
+        suitable_scales = []
+        for scale, (max_w, max_h) in scale_limits.items():
+            if width_mm <= max_w and height_mm <= max_h:
+                suitable_scales.append(scale)
+        
+        if not suitable_scales:
+            return False, f"No suitable scale found for {width_m:.0f}m × {height_m:.0f}m"
+        
+        # 1:5000でしか収まらない場合は警告
+        if suitable_scales[0] == "1:5000" and width_m < 500:
+            logging.warning(f"Size {width_m:.0f}m × {height_m:.0f}m only fits at 1:5000 scale - might be incorrect")
+        
+        return True, f"Suitable scales: {', '.join(suitable_scales)}"
+
+    def _detect_and_fix_unit_issue(self, collection: GeometryCollection, actual_bounds: Tuple[float, float, float, float]) -> bool:
+        """
+        単位の問題を検出して修正
+        
+        Returns:
+            True if conversion was applied
+        """
+        width = actual_bounds[2] - actual_bounds[0]
+        height = actual_bounds[3] - actual_bounds[1]
+        
+        # 現在のサイズの妥当性をチェック
+        is_valid, reason = self._validate_size_for_architectural_drawing(width, height)
+        logging.info(f"Current size check: {width:.1f}mm × {height:.1f}mm - {reason}")
+        
+        if not is_valid and "Too small" in reason:
+            # 小さすぎる場合はメートル単位の可能性
+            # 1000倍してみる
+            test_width = width * 1000
+            test_height = height * 1000
+            test_valid, test_reason = self._validate_size_for_architectural_drawing(test_width, test_height)
+            
+            logging.info(f"Testing 1000x conversion: {test_width:.1f}mm × {test_height:.1f}mm")
+            logging.info(f"Test result: valid={test_valid}, reason={test_reason}")
+            
+            if test_valid:
+                logging.info(f"Converting from meters to mm: {width:.1f}m × {height:.1f}m → {test_width:.0f}mm × {test_height:.0f}mm")
+                logging.info(f"After conversion: {test_reason}")
+                self._apply_unit_factor_to_collection(collection, 1000.0)
+                collection.metadata["unit_factor_mm"] = 1000.0
+                collection.metadata["auto_scaled"] = True
+                return True
+            else:
+                logging.info("1000x conversion did not produce valid size")
+        
+        elif not is_valid and "Too large" in reason:
+            # 大きすぎる場合は誤変換の可能性
+            # 1/1000してみる
+            test_width = width / 1000
+            test_height = height / 1000
+            test_valid, test_reason = self._validate_size_for_architectural_drawing(test_width, test_height)
+            
+            if test_valid:
+                logging.warning(f"Detected over-conversion: {width:.0f}mm × {height:.0f}mm seems incorrect")
+                logging.info(f"Should be: {test_width:.1f}m × {test_height:.1f}m")
+                # この場合は変換を取り消す必要がある
+                self._apply_unit_factor_to_collection(collection, 0.001)
+                collection.metadata["unit_factor_mm"] = 0.001
+                collection.metadata["auto_scaled"] = True
+                collection.metadata["conversion_error"] = True
+                return True
+        
+        logging.info(f"Size validation: {reason}")
+        return False
 
     def _calculate_actual_bounds(
         self, collection: GeometryCollection, exclude_border: bool = False
@@ -253,61 +361,25 @@ class SafeDXFConverter:
                                 else:
                                     collection.add_element(converted)
 
-        # 変換後の実際の座標範囲を計算して単位補正を決定
-        # ヘッダー情報に依存せず、実際の図面要素（ブロック展開後）から判定
+        # 変換後の実際の座標範囲を計算
         actual_bounds = self._calculate_actual_bounds(collection)
         if actual_bounds:
             width = actual_bounds[2] - actual_bounds[0]
             height = actual_bounds[3] - actual_bounds[1]
-            logging.info(f"Actual converted bounds: {width:.1f} x {height:.1f} (unit factor: {self.unit_factor})")
+            
+            logging.info(f"Initial bounds: {width:.1f} × {height:.1f} mm")
             logging.info(f"INSUNITS code: {collection.metadata.get('insunits_code', 'N/A')}")
             
-            # 特殊なケース：INSUNITSがmm(4)でも実際の座標がメートル単位の場合がある
-            # INSERT要素の座標も確認する
-            if self.unit_factor == 1.0 and collection.metadata.get('insunits_code') == 4:
-                # INSERT要素の座標範囲を確認
-                insert_bounds = collection.metadata.get("insert_bounds")
-                if insert_bounds:
-                    insert_width, insert_height = insert_bounds
-                    if insert_width < 1000 and insert_height < 1000:
-                        # INSERT座標がメートル単位の可能性
-                        logging.info(f"INSUNITS=mm but INSERT coordinates appear to be in meters: {insert_width:.1f} x {insert_height:.1f}")
-                        logging.info("Applying 1000x scale correction for m to mm conversion")
-                        self._apply_unit_factor_to_collection(collection, 1000.0)
-                        collection.metadata["unit_factor_mm"] = 1000.0
-                        collection.metadata["auto_scaled"] = True
-                    else:
-                        collection.metadata["auto_scaled"] = False
-                elif width < 1000 and height < 1000:  # 1000mm未満は建築図面として小さすぎる
-                    # メートル単位として記録されている可能性が高い
-                    logging.info(f"INSUNITS=mm but coordinates appear to be in meters: {width:.1f} x {height:.1f}")
-                    logging.info("Applying 1000x scale correction for m to mm conversion")
-                    self._apply_unit_factor_to_collection(collection, 1000.0)
-                    collection.metadata["unit_factor_mm"] = 1000.0
-                    collection.metadata["auto_scaled"] = True
-                else:
-                    collection.metadata["auto_scaled"] = False
-            elif self.unit_factor == 1.0 and collection.metadata.get('insunits_code') == 0:
-                # INSUNITSが不明（0）の場合、サイズから単位を推測
-                if 10 < width < 1000 and 10 < height < 1000:
-                    # メートル単位の可能性
-                    logging.info(f"No INSUNITS specified. Detected possible meter units: {width:.1f} x {height:.1f}")
-                    logging.info("Applying 1000x scale correction for m to mm conversion")
-                    self._apply_unit_factor_to_collection(collection, 1000.0)
-                    collection.metadata["unit_factor_mm"] = 1000.0
-                    collection.metadata["auto_scaled"] = True
-                else:
-                    collection.metadata["auto_scaled"] = False
-            else:
-                collection.metadata["auto_scaled"] = False
-                
-            # 更新後の範囲を再計算
-            if collection.metadata.get("auto_scaled"):
+            # スマートな単位検出と修正
+            conversion_applied = self._detect_and_fix_unit_issue(collection, actual_bounds)
+            
+            if conversion_applied:
+                # 変換後の範囲を再計算
                 actual_bounds = self._calculate_actual_bounds(collection)
                 if actual_bounds:
                     width = actual_bounds[2] - actual_bounds[0]
                     height = actual_bounds[3] - actual_bounds[1]
-                    logging.info(f"After scaling bounds: {width:.1f} x {height:.1f} mm")
+                    logging.info(f"Final bounds after conversion: {width:.1f} × {height:.1f} mm")
                 
         return collection
 

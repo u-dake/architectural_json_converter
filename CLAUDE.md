@@ -4,9 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is an architectural drawing JSON conversion system that analyzes differences between site plans and floor plans, converting them to JSON format for FreeCAD Python API.
+This is an architectural drawing processing system with the following capabilities:
+- **DXF→PDF Conversion**: Convert DXF files to PDF with CAD standard formatting (A3 size, specified scales)
+- **Smart Unit Detection**: Automatically detect and correct unit issues in DXF files (meter/millimeter)
+- **Difference Analysis**: Compare site plans and floor plans to detect architectural changes
+- **Visualization**: Generate high-quality PDF outputs with proper scaling
 
-Currently in **Phase 1 development** (File Structure Analysis).
+The project has evolved from its original three-phase plan to focus on practical DXF→PDF conversion with smart unit handling.
 
 ## Essential Commands
 
@@ -30,22 +34,23 @@ pytest tests/test_analyzers/test_dxf_analyzer.py
 
 ## Architecture Overview
 
-The system consists of three main phases:
+The system is organized into the following components:
 
-1. **Phase 1: File Structure Analysis** (Current)
-   - DXF file analysis using `ezdxf` library
-   - PDF file analysis using `PyMuPDF` library
-   - Output detailed JSON structure of each file
+1. **Analyzers** (`src/analyzers/`)
+   - `dxf_analyzer.py`: Extract and analyze DXF file structure
+   - `pdf_analyzer.py`: Extract and analyze PDF file content
 
-2. **Phase 2: Difference Analysis Engine**
-   - Unified data structure for DXF/PDF
-   - Extract differences between site-only and site-with-floorplan files
-   - Detect walls, openings, room boundaries, fixtures
+2. **Conversion Engines** (`src/engines/`)
+   - `safe_dxf_converter.py`: Smart DXF→PDF conversion with unit detection
+   - `difference_engine.py`: Compare and analyze differences between drawings
 
-3. **Phase 3: JSON Conversion Engine**
-   - Convert to FreeCAD-compatible JSON format
-   - Normalize coordinates to 910mm grid system
-   - Output both `points_grid` and `points_mm`
+3. **Visualization** (`src/visualization/`)
+   - `cad_standard_visualizer.py`: Generate CAD-standard PDF outputs (A3 size, proper scales)
+   - `matplotlib_visualizer.py`: Create visual analysis outputs
+
+4. **Main Application** (`src/main.py`)
+   - Unified CLI for all operations
+   - Commands: `dxf2pdf`, `diff`, `batch`
 
 ## Key Technical Requirements
 
@@ -56,19 +61,21 @@ The system consists of three main phases:
 
 ## Current Development Focus
 
-When implementing `dxf_analyzer.py`:
-1. Use `ezdxf.readfile()` to load DXF files
-2. Extract all entity types comprehensively
-3. Capture layer information with patterns like "WALL", "壁", "W-" for walls
-4. Normalize coordinates with origin reference
-5. Include detailed bounds information
+### DXF→PDF Conversion
+1. **Smart Unit Detection**:
+   - Validate drawing size against architectural standards (5m-2km range)
+   - Check A3 paper compatibility with standard scales (1:50 to 1:5000)
+   - Automatically apply meter→mm conversion when needed
 
-When implementing `pdf_analyzer.py`:
-1. Use `fitz.open()` to load PDF files
-2. Extract vector elements using `page.get_drawings()`
-3. Convert PDF coordinate system (bottom-left origin) to standard (top-left origin)
-4. Extract text with coordinates for room names and dimensions
-5. Handle multi-page documents appropriately
+2. **Mixed Unit Handling**:
+   - INSERT coordinates may be in meters while block content is in millimeters
+   - Trust INSERT coordinates for overall building size
+   - See `_docs/2025-06-28_mixed_units_analysis.md` for detailed analysis
+
+3. **CAD Standard Output**:
+   - A3 size (420×297mm) paper format
+   - Proper scale notation and drawing frame
+   - Support for standard architectural scales
 
 ## Testing Approach
 

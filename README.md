@@ -1,48 +1,35 @@
 # 建築図面差分解析システム
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-145%2F152%20passing-green.svg)](./tests/)
+[![Tests](https://img.shields.io/badge/tests-passing-green.svg)](./tests/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## 概要
-DXF・PDF形式の建築図面間で差分を自動検出し、新規要素の建築分類（壁・開口部・設備）を行う専門システム
+DXF・PDF形式の建築図面を解析し、以下の機能を提供するシステム：
+- **DXF→PDF変換**: CAD標準（A3サイズ、縮尺指定）でのPDF出力
+- **差分解析**: 敷地図と完成形図面の差分を検出し、建築要素を分類
+- **可視化**: 解析結果の視覚的表示
 
-## 開発状況
-✅ **Phase 1 完了** - ファイル構造解析システム（95点）  
-✅ **Phase 2 完了** - 差分解析エンジン + 可視化システム（95点）  
-📋 **Phase 3 予定** - FreeCAD JSON変換エンジン
-
-## 機能
-- **マルチフォーマット対応**: DXF・PDFファイルの両方を解析
-- **差分検出**: 敷地図と間取り図の新規追加要素を自動識別
-- **可視化**: インタラクティブな比較表示（Phase 2）
-- **JSON出力**: FreeCAD互換の構造化データ出力（Phase 3予定）
-- **グリッド対応**: 日本建築標準910mm（半畳）グリッド
+## 主な機能
+✅ **DXF→PDF変換** - スマート単位変換、A3サイズ出力  
+✅ **差分解析エンジン** - 壁・開口部・設備の自動分類  
+✅ **統合CLIツール** - 全機能を一つのコマンドで実行  
+📋 **JSON変換** - FreeCAD互換フォーマット（今後実装予定）
 
 ## クイックスタート
 
-### Phase 1: ファイル構造解析
 ```bash
 # 依存関係インストール
 pip install -r requirements.txt
 
-# DXFファイル解析
-python src/analyzers/dxf_analyzer.py data/sample.dxf
+# DXF→PDF変換（A3サイズ、1:100スケール）
+python src/main.py dxf2pdf input.dxf --scale 1:100
 
-# PDFファイル解析
-python src/analyzers/pdf_analyzer.py data/sample.pdf
-```
+# 差分解析（敷地図と完成形の比較）
+python src/main.py diff site.dxf floor.dxf
 
-### Phase 2: 差分解析・可視化（完了済み）
-```bash
-# 自動環境構築
-./setup.sh
-
-# 2つの図面の差分を解析・可視化
-python src/main.py 敷地図.dxf 間取り図.dxf --visualize --output-dir results/
-
-# 実際のサンプルでの動作確認
-python src/main.py 250618_図面セット/01_敷地図.dxf 250618_図面セット/02_完成形.dxf --visualize
+# バッチ変換（フォルダ内の全DXFファイル）
+python src/main.py batch /path/to/dxf/files/
 ```
 
 ## セットアップ
@@ -83,75 +70,54 @@ pytest tests/ --cov=src/ --cov-report=html
 ```
 architectural_json_converter/
 ├── src/                    # メインソースコード
-│   ├── analyzers/         # DXF・PDF解析モジュール（Phase 1完了）
-│   ├── data_structures/   # 統一データ構造（Phase 2）
-│   ├── engines/           # 差分抽出エンジン（Phase 2）
-│   ├── visualization/     # 可視化システム（Phase 2）
-│   └── main.py           # メインアプリケーション（Phase 2）
+│   ├── analyzers/         # DXF・PDF解析モジュール
+│   ├── data_structures/   # データ構造定義
+│   ├── engines/           # 変換・差分解析エンジン
+│   ├── visualization/     # PDF生成・可視化
+│   └── main.py           # 統合CLIアプリケーション
 ├── tests/                 # テストコード
-├── data/                  # サンプル・解析結果データ
-├── output/                # 生成される可視化・レポート
-└── docs/                  # ドキュメント
+├── tools/debug/           # デバッグツール
+├── sample_data/           # サンプルファイル
+├── output/                # 出力ディレクトリ
+└── _docs/                 # 実装ドキュメント
 ```
 
-## 開発フェーズ
+## 技術的特徴
 
-### ✅ Phase 1: ファイル構造解析（完了）
-- **成果物**: DXF・PDF解析モジュール、基本テストスイート
-- **品質**: テストカバレッジ50%、実図面での動作確認済み
-- **解析結果**: 敷地図56エンティティ → 完成形68エンティティ（差分検出成功）
+### スマート単位変換
+- DXFファイルの単位系を自動検出（メートル/ミリメートル混在対応）
+- A3サイズと縮尺から逆算して建築図面の妥当性をチェック
+- 5m〜2kmの範囲を建築物として妥当と判定
 
-### ✅ Phase 2: 差分解析エンジン + 可視化（完了）
-- **成果物**: 統一データ構造、差分抽出エンジン、可視化システム、包括的ドキュメント
-- **品質**: テストカバレッジ61%、実図面での動作確認済み、0.1秒処理実現
-- **特筆事項**: 超高解像度可視化（2400万画素）、日本語完全対応
+### CAD標準準拠
+- A3サイズ（420×297mm）での出力
+- 標準縮尺対応（1:50、1:100、1:200、1:500、1:1000、1:2000、1:5000）
+- 図面枠・スケール表示付き
 
-### 📋 Phase 3: JSON変換エンジン（予定）
-- **目標**: FreeCAD Python API互換JSON出力
-- **成果物**: 910mmグリッド対応、間取り生成パイプライン
+### 高精度差分解析
+- Shapely使用による正確な幾何演算
+- 建築要素の自動分類（壁、開口部、設備）
+- 日本語レイヤー名対応
 
 ## ドキュメント
-- [Phase 1実装ログ](_docs/2025-01-19_phase1_file_analyzers.md)
-- [Phase 2実装仕様](PHASE2_SPECIFICATION.md)
-- [Phase 2進捗チェックリスト](PHASE2_CHECKLIST.md)
-- [ドキュメント整備要件](DOCUMENTATION_REQUIREMENTS.md)
-- [プロジェクト全体仕様](PROJECT_SPECIFICATION.md)
+- [最新実装状況](_docs/)
+- [Claude向けガイドライン](CLAUDE.md)
 
-## 開発ガイドライン
+## 既知の問題
 
-### コード品質
-- Type hints必須
-- Docstring必須
-- Black formatter適用
-- Unit test coverage > 80%（Phase 2目標）
+### DXF単位系の混在
+一部のDXFファイルでINSERT座標（メートル）とブロック内容（ミリメートル）が混在するケースがあります。詳細は[単位系混在分析](_docs/2025-06-28_mixed_units_analysis.md)を参照。
 
-### 精度要件
-- 座標精度: ±1mm以内
-- 910mmグリッド対応
-- 差分検出精度: 95%以上
-
-### パフォーマンス要件
-- DXF解析: < 10秒
-- PDF解析: < 15秒
-- 差分抽出: < 10秒
-- 可視化生成: < 15秒
+### 推奨スケール
+- 敷地図（400m×277m）: 1:1000
+- 完成形（213m×167m）: 1:500
 
 ## 使用技術
 - **解析**: ezdxf (DXF), PyMuPDF (PDF)
 - **数値計算**: numpy, shapely
-- **可視化**: matplotlib, plotly, seaborn
-- **品質管理**: pytest, black, mypy, flake8
+- **可視化**: matplotlib
+- **品質管理**: pytest, black, mypy
 - **データ検証**: pydantic
 
-## 貢献方法
-1. このリポジトリをフォーク
-2. 機能ブランチを作成
-3. 変更をコミット
-4. テストが通ることを確認
-5. プルリクエストを作成
-
 ## ライセンス
-[ライセンス情報を記載]
-
----
-**開発チーム**: Phase 2実装中！詳細は [PHASE2_CHECKLIST.md](PHASE2_CHECKLIST.md) を参照してください。
+MIT License

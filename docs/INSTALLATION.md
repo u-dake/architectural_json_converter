@@ -119,8 +119,8 @@ python src/main.py --help
 # 基本テスト
 python -m pytest tests/test_geometry_data.py -v
 
-# 差分エンジンテスト
-python -m pytest tests/test_difference_engine.py -v
+# コンバーターテスト
+python -m pytest tests/test_engines/test_safe_dxf_converter.py -v
 
 # 全テスト（時間がかかる場合があります）
 python -m pytest tests/ -v
@@ -129,12 +129,14 @@ python -m pytest tests/ -v
 ### 3. サンプルファイルでの動作確認
 
 ```bash
-# サンプルファイルが利用可能な場合
-python src/main.py 250618_図面セット/01_敷地図.dxf 250618_図面セット/02_完成形.dxf --visualize --output-dir test_output/
+# DXF→PDF変換
+python src/main.py dxf2pdf sample.dxf --scale 1:100
 
-# 期待される出力:
-# ✅ 解析完了!
-# 処理時間: 0.10秒
+# 差分解析
+python src/main.py diff site.dxf floor.dxf
+
+# バッチ変換
+python src/main.py batch /path/to/dxf/files/
 ```
 
 ## 🔧 トラブルシューティング

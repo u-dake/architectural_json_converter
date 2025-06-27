@@ -157,7 +157,18 @@ class SafeDXFConverter:
         
         elif not is_valid and "Too large" in reason:
             # 大きすぎる場合は誤変換の可能性
-            # 1/1000してみる
+            # INSERT座標で実際のサイズを確認
+            insert_bounds = collection.metadata.get("insert_bounds")
+            if insert_bounds:
+                insert_width, insert_height = insert_bounds
+                # INSERTが200m程度なら、全体が1000倍されている可能性
+                if 50 < insert_width < 500 and 50 < insert_height < 500:
+                    logging.warning(f"Detected over-conversion: INSERT shows {insert_width:.0f}×{insert_height:.0f}m but total is {width/1000:.0f}×{height/1000:.0f}m")
+                    logging.info("INSERT coordinates appear to be in meters, but block content was scaled")
+                    # この場合は変換をスキップ（すでに正しいサイズ）
+                    return False
+            
+            # それ以外の場合は1/1000してみる
             test_width = width / 1000
             test_height = height / 1000
             test_valid, test_reason = self._validate_size_for_architectural_drawing(test_width, test_height)
@@ -370,8 +381,31 @@ class SafeDXFConverter:
             logging.info(f"Initial bounds: {width:.1f} × {height:.1f} mm")
             logging.info(f"INSUNITS code: {collection.metadata.get('insunits_code', 'N/A')}")
             
-            # スマートな単位検出と修正
-            conversion_applied = self._detect_and_fix_unit_issue(collection, actual_bounds)
+            # INSERT座標から推測される実際のサイズを確認
+            conversion_applied = False
+            insert_bounds = collection.metadata.get("insert_bounds")
+            if insert_bounds and insert_bounds[0] > 50 and insert_bounds[1] > 50:
+                # INSERT座標が50以上なら、建物サイズとしてメートル単位の可能性が高い
+                insert_width_m = insert_bounds[0]
+                insert_height_m = insert_bounds[1]
+                
+                # 現在の幅が小さすぎる場合（5000mm未満）、INSERT座標を信頼
+                if width < 5000 and height < 5000:
+                    logging.info(f"Small actual bounds ({width:.0f}×{height:.0f}mm) but INSERT shows {insert_width_m:.0f}×{insert_height_m:.0f}m")
+                    logging.info("Trusting INSERT coordinates - applying meter to mm conversion")
+                    # INSERT座標に基づいて1000倍
+                    target_scale = 1000.0
+                    self._apply_unit_factor_to_collection(collection, target_scale)
+                    collection.metadata["unit_factor_mm"] = target_scale
+                    collection.metadata["auto_scaled"] = True
+                    collection.metadata["insert_based"] = True
+                    conversion_applied = True
+                else:
+                    # 通常のスマート単位検出
+                    conversion_applied = self._detect_and_fix_unit_issue(collection, actual_bounds)
+            else:
+                # 通常のスマート単位検出
+                conversion_applied = self._detect_and_fix_unit_issue(collection, actual_bounds)
             
             if conversion_applied:
                 # 変換後の範囲を再計算

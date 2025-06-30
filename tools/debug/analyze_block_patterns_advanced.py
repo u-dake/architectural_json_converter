@@ -85,7 +85,19 @@ class AdvancedBlockPatternAnalyzer:
         """DXFディレクトリを分析"""
         self.dxf_dir = dxf_dir  # ディレクトリを保存
         dxf_path = Path(dxf_dir)
-        dxf_files = sorted(dxf_path.glob("*.dxf"))
+        
+        # 新しいディレクトリ構造に対応
+        dxf_files = []
+        
+        # buildingsディレクトリがある場合
+        buildings_dir = dxf_path / "buildings" if (dxf_path / "buildings").exists() else dxf_path
+        
+        # site_planとfloor_planからDXFファイルを収集
+        for pattern in ["*/site_plan/*.dxf", "*/floor_plan/*.dxf", "*.dxf"]:
+            dxf_files.extend(buildings_dir.glob(pattern))
+        
+        # 重複を除いてソート
+        dxf_files = sorted(set(dxf_files))
         
         print(f"高度な分析を開始: {len(dxf_files)} ファイル\n")
         
@@ -105,7 +117,14 @@ class AdvancedBlockPatternAnalyzer:
         """ブロックデータを収集（INSERTも含む）"""
         try:
             doc = ezdxf.readfile(str(file_path))
-            file_type = "敷地図" if file_path.name.endswith("1.dxf") else "完成図"
+            # 新しいディレクトリ構造に対応したファイルタイプ判定
+            if "site_plan" in str(file_path) or file_path.name.endswith("敷地図.dxf"):
+                file_type = "敷地図"
+            elif "floor_plan" in str(file_path) or file_path.name.endswith("完成形.dxf"):
+                file_type = "完成図"
+            else:
+                # 旧形式のファイル名パターン
+                file_type = "敷地図" if file_path.name.endswith("1.dxf") else "完成図"
             
             # ブロック定義を収集
             block_defs = {}
@@ -126,7 +145,7 @@ class AdvancedBlockPatternAnalyzer:
                         block_name=block_name,
                         insert_x=insert.dxf.insert.x,
                         insert_y=insert.dxf.insert.y,
-                        file_name=file_path.name,
+                        file_name=str(file_path),  # フルパスを保存
                         file_type=file_type
                     )
                     self.block_data[block_name]["instances"].append(instance)
@@ -248,9 +267,8 @@ class AdvancedBlockPatternAnalyzer:
     def _get_block_size_from_file(self, file_name: str, block_name: str) -> Optional[Tuple[float, float]]:
         """ファイルから特定のブロックサイズを取得"""
         try:
-            # 現在の分析ディレクトリから取得
-            file_path = Path(self.dxf_dir) / file_name
-            doc = ezdxf.readfile(str(file_path))
+            # file_nameは既にフルパスなので直接使用
+            doc = ezdxf.readfile(file_name)
             
             for block in doc.blocks:
                 if block.name == block_name:

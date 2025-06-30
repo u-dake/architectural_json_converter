@@ -400,7 +400,11 @@ class ArchitecturalPlotter:
         if output_dir and not os.path.exists(output_dir):
             os.makedirs(output_dir)
         
-        plt.savefig(output_path, dpi=self.dpi, bbox_inches='tight')
+        # 拡張子に応じて保存形式を選択
+        if output_path.lower().endswith('.pdf'):
+            plt.savefig(output_path, format='pdf', dpi=self.dpi, bbox_inches='tight')
+        else:
+            plt.savefig(output_path, dpi=self.dpi, bbox_inches='tight')
         plt.close()
         
         print(f"建築要素解析を保存しました: {output_path}")

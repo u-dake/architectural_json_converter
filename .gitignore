@@ -98,27 +98,22 @@ $RECYCLE.BIN/
 *.lnk
 
 # Project specific
-output/
-data/*.json
-data/sample_*/*.json
+outputs/
+data/
+final_test/
+legacy/
 *.log
 .env
 .env.local
 
-# Keep the sample output for documentation
-!output/.gitkeep
-!data/.gitkeep
+# Keep sample data
+!sample_data/
+!sample_data/**/*.dxf
 
-# Large files
-*.dxf
-*.pdf
-*.dwg
-
-# But keep the sample files
-!250618_図面セット/*.dxf
-!250618_図面セット/*.pdf
-# Refactoring additions
-output/
-tools/debug/output/
-legacy/
+# Temporary files
+*.tmp
+*.bak
+conversion.log
+block_patterns*.json
+*_before.txt
 

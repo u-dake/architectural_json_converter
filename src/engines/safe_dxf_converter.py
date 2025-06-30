@@ -28,16 +28,20 @@ from src.data_structures.simple_geometry import (
     Text,
     GeometryCollection,
 )
+from src.analyzers.unit_detector import UnitDetector, UnitDetectionResult
 
 
 class SafeDXFConverter:
     """安全なDXFコンバーター"""
 
-    def __init__(self):
+    def __init__(self, pattern_file: Optional[str] = None):
         self.layer_info = {}
         self.block_definitions = {}
         # 追加: DXF図面単位→mm換算係数 (初期値1.0)
         self.unit_factor = 1.0
+        # 単位検出器を初期化
+        self.unit_detector = UnitDetector(pattern_file)
+        self.unit_detection_result: Optional[UnitDetectionResult] = None
 
     def _detect_unit_factor(self, doc: ezdxf.document.Drawing) -> float:
         """DXFヘッダーの $INSUNITS または doc.units から mm 換算係数を取得"""
@@ -305,16 +309,28 @@ class SafeDXFConverter:
             変換された幾何要素のコレクション
         """
         doc = ezdxf.readfile(file_path)
-        # 単位係数を検出
-        self.unit_factor = self._detect_unit_factor(doc)
+        
+        # 新しい単位検出システムを使用
+        self.unit_detection_result = self.unit_detector.get_recommended_unit_factor(doc, file_path)
+        self.unit_factor = self.unit_detection_result.unit_factor
+        
+        # 古い検出方法も参考として実行（後で削除予定）
+        old_unit_factor = self._detect_unit_factor(doc)
 
         logging.info(f"DXF version: {doc.dxfversion}")
         logging.info(f"DXF units: {getattr(doc, 'units', 'N/A')}")
-        logging.info(f"Initial unit factor: {self.unit_factor}")
+        logging.info(f"Unit detection result: method={self.unit_detection_result.detection_method}, "
+                    f"factor={self.unit_factor}, confidence={self.unit_detection_result.confidence:.2f}")
+        logging.info(f"Old unit factor (for comparison): {old_unit_factor}")
 
         collection = GeometryCollection()
         collection.metadata["unit_factor_mm"] = self.unit_factor
         collection.metadata["insunits_code"] = getattr(doc, "units", 0)
+        collection.metadata["unit_detection"] = {
+            "method": self.unit_detection_result.detection_method,
+            "confidence": self.unit_detection_result.confidence,
+            "details": self.unit_detection_result.details
+        }
 
         # レイヤー情報を保存
         for layer in doc.layers:
